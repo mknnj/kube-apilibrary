@@ -1,0 +1,10 @@
+README.md
+setup.py
+kubernetesdlprofile/__init__.py
+kubernetesdlprofile/kubeprofiler.py
+kubernetesdlprofile.egg-info/PKG-INFO
+kubernetesdlprofile.egg-info/SOURCES.txt
+kubernetesdlprofile.egg-info/dependency_links.txt
+kubernetesdlprofile.egg-info/top_level.txt
+test/__init__.py
+test/test_kubeprofiler.py
