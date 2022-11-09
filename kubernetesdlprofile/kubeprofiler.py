@@ -6,7 +6,7 @@ class KubeProfiler(object):
         self.jmHostname = job_manager_hostname
         self.dbHostname = db_hostname
         try:
-            self.JOBID = os.getenv("JOB_UUID")[:36]
+            self.JOBID = os.getenv("JOB_UUID")
             self.PROFILE_EACH = int(os.getenv("HEARTBEAT_FREQ"))
             self.RANK = int(os.getenv("NODE_RANK"))
             self.NODE_LIST = os.getenv("NODELIST")
@@ -24,8 +24,8 @@ class KubeProfiler(object):
         try:
             self.LOCAL_RANK = int(os.getenv("LOCAL_RANK"))
         except Exception:
-            print("INFO: LOCAL_RANK not found")
-            self.LOCAL_RANK = 0
+            #print("INFO: LOCAL_RANK not found")
+            self.LOCAL_RANK = -1
         self.mean_iteration_duration = 0
         self.iterations = 0
         self.epoch = 0
@@ -40,8 +40,8 @@ class KubeProfiler(object):
                 _, _, filenames = next(os.walk(checkpoints_dir), (None, None, []))
                 self.ckpt_path = os.path.join(checkpoints_dir, filenames[0])
             except:
-                print("Pytorch Lightning checkpoint folder not found, ckpt_path is root_dir")
-                self.ckpt_path = self.root_dir
+                #print("Pytorch Lightning checkpoint folder not found, ckpt_path is root_dir")
+                self.ckpt_path = self.root_dir + "/tf_ckpt"
         elif not os.path.isdir(self.root_dir):
             os.mkdir(self.root_dir)
         self.start_epoch_time = None
@@ -109,6 +109,6 @@ class KubeProfiler(object):
         self.epoch+=1
 
     def end(self):
-        if self.LOCAL_RANK == 0:
+        if self.LOCAL_RANK == 0 or self.LOCAL_RANK==-1:
             res = requests.post("http://"+self.jmHostname+"/signal_end/"+self.JOBID)
 
