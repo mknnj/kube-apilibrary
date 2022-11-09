@@ -28,6 +28,9 @@ class KubeProfiler(object):
             self.LOCAL_RANK = 0
         self.mean_iteration_duration = 0
         self.iterations = 0
+        self.epoch = 0
+        self.iterationPerEpoch = int(self.TRAINING_SET_SIZE / (self.BATCH_SIZE * self.NUM_GPUS * self.NUM_NODES))
+        self.maxIterations = self.iterationPerEpoch*self.EPOCHS
         self.last_time = None
 
         self.root_dir = os.path.join("/snapshots", self.JOBID)
@@ -43,6 +46,7 @@ class KubeProfiler(object):
             os.mkdir(self.root_dir)
         self.start_epoch_time = None
         self.end_epoch_time = None
+        
     
     def measure(self):
         now = datetime.datetime.now()
@@ -85,6 +89,7 @@ class KubeProfiler(object):
     def end_epoch(self):
         self.end_epoch_time = datetime.datetime.now()
         totalEpochDur = (self.end_epoch_time  - self.start_epoch_time).total_seconds()
+        
         data = {
         "jobid" : self.JOBID,
         "timestamp" : datetime.datetime.now().isoformat(),
@@ -99,8 +104,9 @@ class KubeProfiler(object):
 
         requests.post("http://"+self.dbHostname+"/profiling/"+self.JOBID, json=data)
         r = requests.get("http://"+self.jmHostname+"/has_to_stop/"+self.JOBID)
-        if r.text == "1":
+        if r.text == "1" and self.epoch < self.EPOCHS-1:
             exit()
+        self.epoch+=1
 
     def end(self):
         if self.LOCAL_RANK == 0:
