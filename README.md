@@ -4,7 +4,7 @@ In your Dockerfile you should add the installation of the dedicated API library 
 
  ```RUN pip install -e "git+https://github.com/mknnj/kube-apilibrary/#egg=kubernetesdlprofile" ```
 
-Then you should build the image and tag it:
+<!---Then you should build the image and tag it:
 
  ```docker tag myimage:latest kube-master-node:31320/myimage:version ```
 
@@ -12,70 +12,54 @@ Then you must push it to the private docker registry in the cluster, in order to
 
  ```docker push kube-master-node:31320/myimage:version ```
 
-This is because the scheduler may schedule your job on nodes different from the node on which you built you image.
+This is because the scheduler may schedule your job on nodes different from the node on which you built you image.-->
 
-## Submission POST request
+## Submission with run-scheduler
 
-If you have the image uploaded on the cluster’s private registry, then you can start your job by making a POST request to the scheduler. You should send it to the endpoint [http://10.106.102.22/submit](http://10.106.102.22/submit), the data form of the request must have this structure:
+If you have the image uploaded on the cluster’s private registry, then you can start your job by running the command run-scheduler:
+`run-scheduler [--image_name IMAGE_NAME] [--script_path SCRIPT_PATH] [--custom_dir CUSTOM_DIR] [--snapshots_dir SNAPSHOTS_DIR] [--batch_size BATCH_SIZE] [--training_set_size TRAINING_SET_SIZE]
+                     [--max_epochs MAX_EPOCHS] [--is_single_gpu IS_SINGLE_GPU] [--disable_gpu_sharing DISABLE_GPU_SHARING] [--estimated_memory ESTIMATED_MEMORY] [--port_mapping PORT_MAPPING]
+                     job_name `
 
-```json
-{
-    "jobName": string,
-    "dockerImage": string,
-    "scriptPath": string,
-    "directoryToMount": string,
-    "batchSize": int,
-    "trainingSetSize": int,
-    "maxEpochs": int,
-    "isSingleGPU": bool,
-    "disableGPUSharing": bool,
-    "estimatedMemory": int
-}
-```
-Field semantic:
+Arguments semantic:
 
- - “**jobName**”: the name of your experiment
+ - “**job_name**”: the name of your experiment
 
-- “**dockerImage**”: the name of your docker image uploaded on the private registry (omit kube-master-node:31320/), remember to include the **version**.
+- “**image_name**”: the name of your docker image.
 
-- “**scriptPath**”: the string representing the path of the script inside the docker image, that will be run using the command “python *scriptPath*”
+- “**script_path**”: the string representing the path of the script inside the docker image, that will be run using the command “python *scriptPath*”
 
-- “**directoryToMount**”: path to a directory on the shared volume (user folder on nas) that you want to mount inside the running container. This folder will be visible by your script.
+- “**custom_dir**”: path to a directory to which you have access that you want to mount inside the running container at /custom. You can also run your script from here.
 
-- “**batchSize**”: batch size of the experiment, it will be exported as environment variable inside the running container as **BATCH_SIZE**
+- “**snapshots_dir**”: path to a directory to which you have access that will be mounted inside the running container at /snapshots. The library saves here snapshots of your training in case it's stopped .
 
-- “**trainingSetSize**”: training set size for the experiment, it is used by the scheduler to compute the number of iterations on the dataset (along with batch size) your job must do. It is exported as env variable inside the running container as **TRAINING_SET_SIZE**
+- “**batch_size**”: batch size of the experiment, it will be exported as environment variable inside the running container as **BATCH_SIZE**
 
-- “**maxEpochs**”: represents the maximum number of epochs for your job. It is used by the scheduler to predict the total duration of your job. It is exported as **EPOCHS_TO_BE_DONE**
+- “**training_set_size**”: training set size for the experiment, it is used by the scheduler to compute the number of iterations on the dataset (along with batch size) your job must do. It is exported as env variable inside the running container as **TRAINING_SET_SIZE**
 
-- “**isSingleGPU**”: tells the scheduler that your code doesn’t support multi-GPU training. If it’s true, the scheduler never schedules your job on more than 1 GPU.
+- “**max_epochs**”: represents the maximum number of epochs for your job. It is used by the scheduler to predict the total duration of your job. It is exported as **EPOCHS_TO_BE_DONE**
 
-- “**disableGPUSharing**”: tells the scheduler that your script cannot be run in sharing on a GPU. If true the job will always be scheduled alone on a GPU, this makes your job iterations faster since there will be no interference but it’ll be more difficult to find the space to schedule it so it may remain pending for longer time. [you can set any value for now; it is default to true]
+- “**is_single_gpu**”: tells the scheduler that your code doesn’t support multi-GPU training. If it’s true, the scheduler never schedules your job on more than 1 GPU.
 
-- “**estimatedMemory**”: the estimated GPU memory used by your **running container [in MiB].** Note that this is usually larger than the model size, and it’s suggested to overestimate it because if it’s too small the job may fail.
+- “**disable_gpu_sharing**”: tells the scheduler that your script cannot be run in sharing on a GPU. If true the job will always be scheduled alone on a GPU, this makes your job iterations faster since there will be no interference but it’ll be more difficult to find the space to schedule it so it may remain pending for longer time. [you can set any value for now; it is default to true]
 
-- “**username**”: your username that will be used to mount the /exp folder inside the container, along with your dataset folder that will be mounted inside /dataset
+- “**estimated_memory**”: the estimated GPU memory used by your **running container [in MiB].** Note that this is usually larger than the model size, and it’s suggested to overestimate it because if it’s too small the job may fail.
+
+- “**port_mapping**”: a string \<nodePort1\>:\<containerPort1\>,\<nodePort2\>:\<containerPort2\>,... to expose container ports. 
+
+Additionally, your container will have your dataset folder mounted in /datasets
 
 
-An example could be:
-```json
-{
-"jobName": "test-image-1",
-"dockerImage": "myimage:version",
-"scriptPath": "/home/works/test.py",
-"directoryToMount": "/users/test_library/",
-"batchSize": 128,
-"trainingSetSize": 45000,
-"maxEpochs": 3,
-"isSingleGPU": false,
-"disableGPUSharing": true,
-"estimatedMemory": 1100,
-"username": "user"
-}
-```
 
+In case of errors, the logs will be available by using the command `scheduler-get-logs [jobID]`
 
-In case of errors, the logs will be available in the directory mounted in the running container, in a file called “errorlog.txt”.
+## Other commands
+
+- `scheduler-situation [--all] [--nlast]` will return the descriptions and the status of the `nlast` jobs submitted. Use `--all` to switch between your jobs or all jobs 
+
+- `scheduler-cancel-job [jobID]` is used to forcefully end a submitted job
+
+- `scheduler-get-logs [jobID]` is used to show the logs for a particular job. If it's pending for a long time it's suggested to kill it.
 
 ## Script modification
 
@@ -298,6 +282,14 @@ model.evaluate(x_test, y_test, verbose=2)
 prof.end()
   ```
 
+## Tensorboard
+To set up tensorboard make your script save tensorboard logs in the custom folder then start a container with tensorboard to expose some port:
+
+ ```docker run -v </custom_dir/path/to/saved/tf/logs>:/data -d -p 31346:6006 <tf image> tensorboard --logdir /data ```
+ 
+ A tf image could be nvcr.io/nvidia/tensorflow:21.09-tf2-py3.
+
+Remember to kill the container when the job is complete.
 
 ### PyTorch
  ```dockerfile
