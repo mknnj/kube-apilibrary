@@ -1,4 +1,58 @@
 ﻿# Kubernetes Scheduler submission guide
+This document is a guide designed to help users launch their containerized deep learning jobs with the new Kubernetes-based scheduler. The scheduler's purpose is to exploit the iterative nature of a deep learning training task in order to perform per epoch profiling and optimize the allocation of GPU memory to the running jobs. The scheduler optimizes resources use, allocating an arbitrary number of GPUs to a job, in order to efficiently use all the GPUs on the machine. With the help of snapshots, taken at the end of each epoch, it is also possible to preempt running jobs in order to execute higher priority jobs. Since your script has to be aware of being run with the scheduler, a python library has been developed to encapsulate the interaction with the scheduler's components.
+
+**Disclaimer**: Please use the job only to submit experiments and not developing/debug scripts
+
+
+## Submission with run-scheduler
+
+If you have your docker image on westworld (with the right modifications, see below), then you can start your job by running the command run-scheduler:
+`run-scheduler [--image_name IMAGE_NAME] [--script_path SCRIPT_PATH] [--custom_dir CUSTOM_DIR] [--snapshots_dir SNAPSHOTS_DIR] [--batch_size BATCH_SIZE] [--training_set_size TRAINING_SET_SIZE]
+                     [--max_epochs MAX_EPOCHS] [--is_single_gpu IS_SINGLE_GPU] [--disable_gpu_sharing DISABLE_GPU_SHARING] [--estimated_memory ESTIMATED_MEMORY] [--port_mapping PORT_MAPPING]
+                     job_name `
+
+Arguments semantic:
+
+ - “**job_name**”: the name of your experiment
+
+- “**image_name**”: the name of your docker image.
+
+- “**script_path**”: the string representing the path of the script inside the docker image, that will be run using the command “python *script_path*”
+
+- “**custom_dir**”: path to a directory to which you have access that you want to mount inside the running container at /custom. You can also run your script from here.
+
+- “**snapshots_dir**”: path to a directory to which you have access that will be mounted inside the running container at /snapshots. The library saves here snapshots of your training in case it's stopped .
+
+- “**batch_size**”: batch size used in the training for the experiment. It will be used by the scheduler along with the training_set_size to compute the number of iterations in one epoch, it will be exported as environment variable inside the running container as **BATCH_SIZE**
+
+- “**training_set_size**”: training set size for the experiment, excluding the validation set. It is used by the scheduler along with the batch size to compute the number of iterations in one training epoch. It is exported as enviroment variable inside the running container as **TRAINING_SET_SIZE**
+
+- “**max_epochs**”: represents the maximum number of epochs for your job. It is used by the scheduler to predict the total duration of your job. It is exported as **EPOCHS_TO_BE_DONE**
+
+- “**is_single_gpu**”: tells the scheduler that your code doesn’t support multi-GPU training. If it’s true, the scheduler never schedules your job on more than 1 GPU.
+
+- “**disable_gpu_sharing**”: tells the scheduler that your script cannot be run in sharing on a GPU. If true the job will always be scheduled alone on a GPU, this makes your job iterations faster since there will be no interference but it’ll be more difficult to find the space to schedule it so it may remain pending for longer time. [the default is false but if you need your job to be isolated from other jobs you may want to set it true]
+
+- “**estimated_memory**”: the estimated GPU memory used by your **running container [in MiB].** Note that this is usually larger than the model size, and it’s suggested to overestimate it because if it’s too small the job may fail. 
+
+- “**port_mapping**”: a string \<nodePort1\>:\<containerPort1\>,\<nodePort2\>:\<containerPort2\>,... to expose container ports. 
+
+Additionally, your container will automatically mount your dataset folders (/home/\<username\>/datasets) in /datasets
+
+
+In case of errors, the logs will be available by using the command `scheduler-get-logs [jobID]` that will return the output of your script, that is saved in a text file by the scheduler.
+
+## Other commands
+
+- `scheduler-state [--all] [--nlast]` will return the descriptions and the status of the `nlast` jobs submitted. Use `--all` to switch between your jobs or all jobs 
+
+- `scheduler-cancel-job [jobID]` is used to forcefully end a submitted job
+
+- `scheduler-get-logs [jobID]` is used to show the logs for a particular job. If it's pending for a long time it's suggested to kill it.
+
+# Requirements
+As anticipated, your docker image and your script need to be slightly modified in order to be run with the scheduler efficiently
+
 ## Docker image build
 In your Dockerfile you should add the installation of the dedicated API library for the scheduler:
 
@@ -14,62 +68,19 @@ Then you must push it to the private docker registry in the cluster, in order to
 
 This is because the scheduler may schedule your job on nodes different from the node on which you built you image.-->
 
-## Submission with run-scheduler
-
-If you have the image uploaded on the cluster’s private registry, then you can start your job by running the command run-scheduler:
-`run-scheduler [--image_name IMAGE_NAME] [--script_path SCRIPT_PATH] [--custom_dir CUSTOM_DIR] [--snapshots_dir SNAPSHOTS_DIR] [--batch_size BATCH_SIZE] [--training_set_size TRAINING_SET_SIZE]
-                     [--max_epochs MAX_EPOCHS] [--is_single_gpu IS_SINGLE_GPU] [--disable_gpu_sharing DISABLE_GPU_SHARING] [--estimated_memory ESTIMATED_MEMORY] [--port_mapping PORT_MAPPING]
-                     job_name `
-
-Arguments semantic:
-
- - “**job_name**”: the name of your experiment
-
-- “**image_name**”: the name of your docker image.
-
-- “**script_path**”: the string representing the path of the script inside the docker image, that will be run using the command “python *scriptPath*”
-
-- “**custom_dir**”: path to a directory to which you have access that you want to mount inside the running container at /custom. You can also run your script from here.
-
-- “**snapshots_dir**”: path to a directory to which you have access that will be mounted inside the running container at /snapshots. The library saves here snapshots of your training in case it's stopped .
-
-- “**batch_size**”: batch size of the experiment, it will be exported as environment variable inside the running container as **BATCH_SIZE**
-
-- “**training_set_size**”: training set size for the experiment, it is used by the scheduler to compute the number of iterations on the dataset (along with batch size) your job must do. It is exported as env variable inside the running container as **TRAINING_SET_SIZE**
-
-- “**max_epochs**”: represents the maximum number of epochs for your job. It is used by the scheduler to predict the total duration of your job. It is exported as **EPOCHS_TO_BE_DONE**
-
-- “**is_single_gpu**”: tells the scheduler that your code doesn’t support multi-GPU training. If it’s true, the scheduler never schedules your job on more than 1 GPU.
-
-- “**disable_gpu_sharing**”: tells the scheduler that your script cannot be run in sharing on a GPU. If true the job will always be scheduled alone on a GPU, this makes your job iterations faster since there will be no interference but it’ll be more difficult to find the space to schedule it so it may remain pending for longer time. [you can set any value for now; it is default to true]
-
-- “**estimated_memory**”: the estimated GPU memory used by your **running container [in MiB].** Note that this is usually larger than the model size, and it’s suggested to overestimate it because if it’s too small the job may fail.
-
-- “**port_mapping**”: a string \<nodePort1\>:\<containerPort1\>,\<nodePort2\>:\<containerPort2\>,... to expose container ports. 
-
-Additionally, your container will have your dataset folder mounted in /datasets
-
-
-
-In case of errors, the logs will be available by using the command `scheduler-get-logs [jobID]`
-
-## Other commands
-
-- `scheduler-situation [--all] [--nlast]` will return the descriptions and the status of the `nlast` jobs submitted. Use `--all` to switch between your jobs or all jobs 
-
-- `scheduler-cancel-job [jobID]` is used to forcefully end a submitted job
-
-- `scheduler-get-logs [jobID]` is used to show the logs for a particular job. If it's pending for a long time it's suggested to kill it.
-
 ## Script modification
 
 If you want to run a Python deep learning script with the scheduler, you must include the dedicated API library in your code.
 
-In every script you run in your image you must include the API:
+In every script you run in your image you must include the API library:
 
 `from kubernetesdlprofile import kubeprofiler`
 
-And then use it properly by instantiating an object and calling its methods in some points of your code.
+This python library is used to encapsulate the necessary interactions between your script and the scheduler. For example the scheduler may preempt your job: The script has to know where to save the snapshot, then wait for the epoch to finish and then when it's executed again. It has to know that it's being restarted, where to find the snapshot to restart with. Another example is that when the script ends, it signals the scheduler that has been completed without problems. 
+
+This library helps you with this by hiding this complexity behind simple function calls to send signals and profile data to the scheduler. Its instance will have attributes that will contain values specified by you in the cli command.
+
+You have to use it in your code by instantiating an object and calling its methods in some points of your code.
 [ you can find working examples for Pytorch,  Pytorch Lightning and Tensorflow at the end of this guide ]
 The methods the API object exposes are:
 * **measure()** that has to be called at the end of each training step
@@ -98,18 +109,20 @@ Here you have the complete list of environment variables that are exposed, and t
 | NUM_GPUS| Number of GPUs assigned to the job | NUM_GPUS |
 | NUM_NODES| Number of nodes assigned to the job (same as WORLD_SIZE) | NUM_NODES |
 | PL_TORCH_DISTRIBUTED_BACKEND| Set to "nccl" by default | \ |
-|**Set by user variables (same value as POST request, use them to parametrize your job):** |
+**Variables set by the user (same value as specified in the CLI command, use them to parametrize your job):** 
+|Name  | Usage | Name of API attribute
+|--|--|--|
 | BATCH_SIZE | Batch size as set by the user | BATCH_SIZE|
 | EPOCHS_TO_BE_DONE | Max epochs as set by the user | EPOCHS |
 | TRAINING_SET_SIZE| Number of training samples in the dataset as set by the user | TRAINING_SET_SIZE |
 
-The of the variables saved in the api instance is simple to extract from the API instance, if you have:
+The value of these variables is in the api instance is simple to extract and use in your code:
 
     api = kubeprofiler.KubeProfiler()
-as API instance, then you can access a saved environment variables as:
+You can access a saved environment variables as:
 
     api.SAVEDVARIABLENAME
-For example if you want to get the batch size you specified for your job in the POST request you can get it in your code as:
+For example if you want to get the batch size you specified for your job in the run-scheduler command you can get it in your code as:
 
     api.BATCH_SIZE
 ---
@@ -119,9 +132,12 @@ In your code it's recommended to use
 * EPOCHS
 * TRAINING_SET_SIZE
 
-Those are values you have specified in the POST request and you can get them in your code from the API Instance
+Those are values you have specified in the CLI command and you can get them in your code from the API Instance. It is recommended to use their values in your code because:
+* You already specified them in the run-scheduler command, you can easily control them from there if you need to.
+* Their value is used by the optimizer to estimate the remaining time for your job. If you don't use the values from the environment variables you need to be careful and make sure you use the same values in your code or otherwise these estimation won't be truthful. Your job may be heavily penalized by being preempted or given less resources if it exceedes the estimated completion time.
 
 ---
+### Job restarting
 The scheduler may stop and restart your job, in order to restore the correct running state of your job you need checkpoint and checkpoint loading. It's recommended to exploit the API Instance attributes:
 * RESTARTED: bool to check that tells if you need to reload a checkpoint
 * EPOCHS_DONE: number of epochs already done, used to restore training state in TensorFlow
@@ -130,7 +146,9 @@ The scheduler may stop and restart your job, in order to restore the correct run
 You can write your custom paths for saving and reloading checkpoint but be sure that if your training is suddenly stopped by the scheduler, it can be resumed by the checkpoint you specify.
 
 ---
-Variables used in distributed training are not required to be handled by your code. If you want your job to be scheduled on more than 1 node and/or more than 1 GPU by the scheduler remember to put a piece of code in your script that tells that:
+Environment variables used in distributed training are not required to be handled by your code, but they are necessary since Tensoflow and Pytorch use them behind the scenes. If you want your job to work on more than 1 GPU by the scheduler remember to set *is_single_gpu* parameter to *false* and then add to your script a line of code to support multi-GPU (do not worry about NUM_NODES too much for now):
+
+
 For Example:
 in Pytorch Lightning you have to specify the number of gpus and the number of nodes (take the value from NUM_NODES and NUM_GPUS):
 ```python
@@ -148,9 +166,11 @@ mirrored_strategy = tf.distribute.MirroredStrategy()
 
 ```
 
-If your job doesn't specify any distributed strategy support please set `isSingleGPU: true` in your POST request, in this way your job won't be scheduled on more than 1 GPU.
+**Note**: NUM_NODES is for multi-node training but since we are testing on just one machine, you do not have to worry about it too much.
+
+If your job doesn't specify any distributed strategy support please set *isSingleGPU* to *true* as command parameter, in this way your job won't be scheduled on more than 1 GPU.
 ## Complete Examples
-Here you have some toy examples in each framework, adding the scheduler approach to some hello-world scripts.
+Here you have some toy examples in each framework, adding the scheduler approach to some hello-world scripts. These are simple working example to show you the usage of the library and where to call its key functions in order to properly interact with the scheduler.
 ### Pytorch Lightning
  ```dockerfile
  FROM nvcr.io/nvidia/pytorch:21.09-py3
