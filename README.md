@@ -7,7 +7,7 @@ This document is a guide designed to help users launch their containerized deep 
 
 If you have your docker image on westworld (with the right modifications, see below), then you can start your job by running the command run-scheduler:
 `run-scheduler [--image_name IMAGE_NAME] [--script_path SCRIPT_PATH] [--custom_dir CUSTOM_DIR] [--snapshots_dir SNAPSHOTS_DIR] [--batch_size BATCH_SIZE] [--training_set_size TRAINING_SET_SIZE]
-                     [--max_epochs MAX_EPOCHS] [--is_single_gpu IS_SINGLE_GPU] [--disable_gpu_sharing DISABLE_GPU_SHARING] [--estimated_memory ESTIMATED_MEMORY] [--port_mapping PORT_MAPPING]
+                     [--max_epochs MAX_EPOCHS] [--is_single_gpu IS_SINGLE_GPU] [--disable_gpu_sharing DISABLE_GPU_SHARING] [--estimated_memory ESTIMATED_MEMORY] [--port_mapping PORT_MAPPING] [--est_nhours EST_NHOURS]
                      job_name `
 
 Arguments semantic:
@@ -36,6 +36,8 @@ Arguments semantic:
 
 - “**port_mapping**”: a string \<nodePort1\>:\<containerPort1\>,\<nodePort2\>:\<containerPort2\>,... to expose container ports. 
 
+- “**est_nhours**”: estimation of the duration of your job (in hours), must be >1. It will be adjusted at the end of the first epoch with profiling values 
+
 Additionally, your container will automatically mount your dataset folders (/home/\<username\>/datasets) in /datasets
 
 
@@ -45,7 +47,7 @@ In case of errors, the logs will be available by using the command `scheduler-ge
 
 ## Other commands
 
-- `scheduler-state [--all] [--nlast]` will return the descriptions and the status of the `nlast` jobs submitted. Use `--all` to switch between your jobs or all jobs 
+- `scheduler-state [--all_users] [--nlast] [--extended]` will return the descriptions and the status of the `nlast` jobs submitted. Use `--all_users` to switch between your jobs or all jobs and  `--extended` to display all options
 
 - `scheduler-cancel-job [jobID]` is used to forcefully end a submitted job
 
