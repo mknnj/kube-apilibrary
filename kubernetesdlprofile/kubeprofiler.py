@@ -87,7 +87,10 @@ class KubeProfiler(object):
         "gpumem" : self._measure_mem()
         }
         #print("SENDING: ", profilingData, "to", self.dbHostname)
-        requests.post("http://"+self.dbHostname+"/profiling/"+self.JOBID, json=profilingData)
+        try:
+            requests.post("http://"+self.dbHostname+"/profiling/"+self.JOBID, json=profilingData)
+        except Exception as e:
+            print("Can't reach scheduler db",e)
 
     def start_epoch(self):
         self.start_epoch_time = datetime.datetime.now()
@@ -108,11 +111,17 @@ class KubeProfiler(object):
         "epochDur" : totalEpochDur
         }
 
-        requests.post("http://"+self.dbHostname+"/profiling/"+self.JOBID, json=data)
-        r = requests.get("http://"+self.jmHostname+"/has_to_stop/"+self.JOBID)
-        if r.text == "1" and self.epoch < self.EPOCHS-1:
-            exit()
-        self.epoch+=1
+        try:
+            requests.post("http://"+self.dbHostname+"/profiling/"+self.JOBID, json=data)
+        except Exception as e:
+            print("Can't reach scheduler db",e)
+        try:
+            r = requests.get("http://"+self.jmHostname+"/has_to_stop/"+self.JOBID)
+            if r.text == "1" and self.epoch < self.EPOCHS-1:
+                exit()
+            self.epoch+=1
+        except Exception as e:
+            print("Can't reach scheduler controller",e)
     
     def end_epoch(self):
         endEpochThread = threading.Thread(target = self._end_epoch)
