@@ -1,5 +1,6 @@
 import requests, os, datetime
 import xml.etree.ElementTree as ET
+import threading
 
 class KubeProfiler(object):
     def __init__(self, job_manager_hostname = "10.106.102.22", db_hostname = "10.106.72.44"):
@@ -48,7 +49,7 @@ class KubeProfiler(object):
         self.end_epoch_time = None
         
     
-    def measure(self):
+    def _measure(self):
         now = datetime.datetime.now()
         if self.last_time:
              iter_duration = (now - self.last_time).total_seconds()
@@ -59,11 +60,16 @@ class KubeProfiler(object):
              self.last_time = now
         if self.iterations % self.PROFILE_EACH == 0 and self.iterations>0:
              self.send_profiling()
+    
+    def measure(self):
+        measureThread = threading.Thread(target = self._measure)
+        measureThread.start()
 
     def _measure_mem(self):
         #call to nvidia-smi (quite heavy)
         res = ET.fromstring(os.popen('nvidia-smi -q -x').read())
         mypid = os.getpid()
+        memOcc = 0
         for pinfo in res.findall("gpu/processes/process_info"):
             if pinfo.find("pid").text == str(mypid):
                 memOcc = int(pinfo.find("used_memory").text.rstrip(" MiB"))
@@ -86,7 +92,7 @@ class KubeProfiler(object):
     def start_epoch(self):
         self.start_epoch_time = datetime.datetime.now()
 
-    def end_epoch(self):
+    def _end_epoch(self):
         self.end_epoch_time = datetime.datetime.now()
         totalEpochDur = (self.end_epoch_time  - self.start_epoch_time).total_seconds()
         
@@ -107,8 +113,13 @@ class KubeProfiler(object):
         if r.text == "1" and self.epoch < self.EPOCHS-1:
             exit()
         self.epoch+=1
+    
+    def end_epoch(self):
+        endEpochThread = threading.Thread(target = self._end_epoch)
+        endEpochThread.start()
 
     def end(self):
-        if self.LOCAL_RANK == 0 or self.LOCAL_RANK==-1:
-            res = requests.post("http://"+self.jmHostname+"/signal_end/"+self.JOBID)
+        return
+        #if self.LOCAL_RANK == 0 or self.LOCAL_RANK==-1:
+            #res = requests.post("http://"+self.jmHostname+"/signal_end/"+self.JOBID)
 

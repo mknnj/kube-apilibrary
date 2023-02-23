@@ -1,8 +1,7 @@
 ﻿# Kubernetes Scheduler submission guide
 This document is a guide designed to help users launch their containerized deep learning jobs with the new Kubernetes-based scheduler. The scheduler's purpose is to exploit the iterative nature of a deep learning training task in order to perform per epoch profiling and optimize the allocation of GPU memory to the running jobs. The scheduler optimizes resources use, allocating an arbitrary number of GPUs to a job, in order to efficiently use all the GPUs on the machine. With the help of snapshots, taken at the end of each epoch, it is also possible to preempt running jobs in order to execute higher priority jobs. Since your script has to be aware of being run with the scheduler, a python library has been developed to encapsulate the interaction with the scheduler's components.
 
-**Disclaimer**: Please use the job only to submit experiments and not developing/debug scripts
-
+**Disclaimer**: Please use the scheduler only to submit experiments and not developing/debug scripts. The scheduler does not support python notebooks, since it assumes a relatively constant GPU memory usage. For non-DL jobs or jobs that do not use GPU memory, please make sure your script interacts with the scheduler as described in this guide.
 
 ## Submission with run-scheduler
 
@@ -31,7 +30,7 @@ Arguments semantic:
 
 - “**is_single_gpu**”: tells the scheduler that your code doesn’t support multi-GPU training. If it’s true, the scheduler never schedules your job on more than 1 GPU.
 
-- “**disable_gpu_sharing**”: tells the scheduler that your script cannot be run in sharing on a GPU. If true the job will always be scheduled alone on a GPU, this makes your job iterations faster since there will be no interference but it’ll be more difficult to find the space to schedule it so it may remain pending for longer time. [the default is false but if you need your job to be isolated from other jobs you may want to set it true]
+- “**disable_gpu_sharing**”: tells the scheduler that your script cannot be run in sharing on a GPU. If set to true, the job will always be scheduled alone on a GPU, it’ll be more difficult to find the space to schedule it so it may remain pending for longer time. It is advised to set it false, since from preliminary experiments it has been shown the total throughput with GPU sharing is higher, set it to true only if you really need some constraints about interference.
 
 - “**estimated_memory**”: the estimated GPU memory used by your **running container [in MiB].** Note that this is usually larger than the model size, and it’s suggested to overestimate it because if it’s too small the job may fail. 
 
@@ -41,6 +40,8 @@ Additionally, your container will automatically mount your dataset folders (/hom
 
 
 In case of errors, the logs will be available by using the command `scheduler-get-logs [jobID]` that will return the output of your script, that is saved in a text file by the scheduler.
+
+**Note**: CPU allocation is different from reservations made on the Google Sheet file. The scheduler handles a shared pool of cores, your script can spawn multiple processes (e.g. pytorch num_workers) and they will be allocated on this shared pool.
 
 ## Other commands
 
@@ -86,7 +87,6 @@ The methods the API object exposes are:
 * **measure()** that has to be called at the end of each training step
 *  **start_epoch()** that has to be called at the start of each epoch
 *  **end_epoch()** that has to be called at the end of each epoch (including validation)
-*  **end()** that has to be called at the end of your script
 
 These methods are used in order to profile and collect data about the duration of training steps and epochs. In this way, the scheduler's optimizer knows about the performance of your job in the different GPU configurations. 
 In addition, GPU memory occupation of your job is measured in order to allow GPU sharing without running out of memory.
@@ -109,14 +109,18 @@ Here you have the complete list of environment variables that are exposed, and t
 | NUM_GPUS| Number of GPUs assigned to the job | NUM_GPUS |
 | NUM_NODES| Number of nodes assigned to the job (same as WORLD_SIZE) | NUM_NODES |
 | PL_TORCH_DISTRIBUTED_BACKEND| Set to "nccl" by default | \ |
+
+
 **Variables set by the user (same value as specified in the CLI command, use them to parametrize your job):** 
+
+
 |Name  | Usage | Name of API attribute
 |--|--|--|
 | BATCH_SIZE | Batch size as set by the user | BATCH_SIZE|
 | EPOCHS_TO_BE_DONE | Max epochs as set by the user | EPOCHS |
 | TRAINING_SET_SIZE| Number of training samples in the dataset as set by the user | TRAINING_SET_SIZE |
 
-The value of these variables is in the api instance is simple to extract and use in your code:
+The value of these variables is in the api instance and is simple to extract and use in your code:
 
     api = kubeprofiler.KubeProfiler()
 You can access a saved environment variables as:
@@ -232,7 +236,6 @@ if  __name__=="__main__":
      trainer.fit(nn, DataLoader(train, batch_size=batch_size, num_workers= workers, persistent_workers=True, drop_last=True))
    else:
      trainer.fit(nn, DataLoader(train, batch_size=batch_size, num_workers= workers, persistent_workers=True, drop_last=True), ckpt_path=nn.prof.ckpt_path)
-   nn.prof.end()
   ```
 
 ### Tensorflow
@@ -299,7 +302,6 @@ if  RESTARTED:
    initial_epoch = prof.EPOCHS_DONE
 model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, initial_epoch=initial_epoch, callbacks=[model_checkpoint_callback, kube_callback])
 model.evaluate(x_test, y_test, verbose=2)
-prof.end()
   ```
 
 ## Tensorboard
@@ -387,5 +389,4 @@ if __name__ == '__main__':
        model.prof.measure()
      model.prof.end_epoch()
      torch.save(model_par.state_dict(), PATH)
-   model.prof.end()
 ```
