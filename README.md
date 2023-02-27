@@ -16,7 +16,7 @@ Arguments semantic:
 
 - “**image_name**”: the name of your docker image.
 
-- “**script_path**”: the string representing the path of the script inside the docker image, that will be run using the command “python *script_path*”
+- “**script_path**”: the string representing the path of the script inside the docker image, that will be run using the command “python *script_path*”. Please note that this path is a container path so if you plan to run a script into a the custom folder mounted with the "*custom_dir*" parameter, you have to take into account the location where it will be mounted. For example if your script is in "**/home/myname/tests/test1.py**" and you mount into the container as *custom_dir* "**/home/myname/tests**" please note that your script path is **not** "**/home/myname/tests/test1.py**" anymore, the *custom_dir* is mounted at **/custom** so you have to specify "**/custom/test1.py**" as *script_path*.
 
 - “**custom_dir**”: path to a directory to which you have access that you want to mount inside the running container at /custom. You can also run your script from here.
 
