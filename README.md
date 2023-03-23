@@ -38,7 +38,7 @@ Arguments semantic:
 
 - “**est_nhours**”: estimation of the duration of your job (in hours), must be >1. It will be adjusted at the end of the first epoch with profiling values 
 
-Additionally, your container will automatically mount your dataset folders (/home/\<username\>/datasets) in /datasets
+Additionally, your container will automatically mount your dataset folders (/home/\<username\>/datasets) in /data
 
 
 In case of errors, the logs will be available by using the command `scheduler-get-logs [jobID]` that will return the output of your script, that is saved in a text file by the scheduler.
@@ -206,9 +206,9 @@ import pytorch_lightning as  pl
 from kubernetesdlprofile import kubeprofiler
 class TestNN(pl.LightningModule):
    def  __init__(self):
-     super().__init__()
-     self.model = models.mobilenet_v2()
-     self.prof = kubeprofiler.KubeProfiler()
+      super().__init__()
+      self.model = models.mobilenet_v2()
+      self.prof = kubeprofiler.KubeProfiler()
 def forward(self, x):
    out = self.model(x)
    return  out
@@ -227,7 +227,7 @@ def  configure_optimizers(self):
    optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
    return  optimizer
 if  __name__=="__main__":
-   dataset = CIFAR10("/datasets/cifar", download=True, transform=transforms.ToTensor())
+   dataset = CIFAR10("/data/cifar", download=True, transform=transforms.ToTensor())
    nn = TestNN()
    train, val = random_split(dataset, [nn.prof.TRAINING_SET_SIZE, len(dataset)-nn.prof.TRAINING_SET_SIZE])
    batch_size = nn.prof.BATCH_SIZE
@@ -235,9 +235,9 @@ if  __name__=="__main__":
    workers = 10
    trainer = pl.Trainer(accelerator="gpu", devices = nn.prof.NUM_GPUS, num_nodes=nn.prof.NUM_NODES, strategy="ddp", max_epochs=epochs, profiler="simple", default_root_dir=nn.prof.root_dir)
    if  not nn.prof.RESTARTED:
-     trainer.fit(nn, DataLoader(train, batch_size=batch_size, num_workers= workers, persistent_workers=True, drop_last=True))
+      trainer.fit(nn, DataLoader(train, batch_size=batch_size, num_workers= workers, persistent_workers=True, drop_last=True))
    else:
-     trainer.fit(nn, DataLoader(train, batch_size=batch_size, num_workers= workers, persistent_workers=True, drop_last=True), ckpt_path=nn.prof.ckpt_path)
+      trainer.fit(nn, DataLoader(train, batch_size=batch_size, num_workers= workers, persistent_workers=True, drop_last=True), ckpt_path=nn.prof.ckpt_path)
   ```
 
 ### Tensorflow
@@ -283,14 +283,14 @@ model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
    save_best_only=True)
 class KubeProfilerCallback(tf.keras.callbacks.Callback):
    def __init__(self, prof):
-     super(KubeProfilerCallback, self).__init__()
-     self.prof = prof
-def on_epoch_begin(self, epoch, logs=None):
-   self.prof.start_epoch()
-def on_epoch_end(self, epoch, logs=None):
-   self.prof.end_epoch()
-def on_train_batch_end(self, batch, logs=None):
-   self.prof.measure()
+      super(KubeProfilerCallback, self).__init__()
+      self.prof = prof
+   def on_epoch_begin(self, epoch, logs=None):
+      self.prof.start_epoch()
+   def on_epoch_end(self, epoch, logs=None):
+      self.prof.end_epoch()
+   def on_train_batch_end(self, batch, logs=None):
+      self.prof.measure()
 kube_callback = KubeProfilerCallback(prof)
 model.compile(optimizer='adam',
    loss=loss_fn,
@@ -299,7 +299,7 @@ batch_size = prof.BATCH_SIZE
 epochs = prof.EPOCHS
 RESTARTED = prof.RESTARTED
 initial_epoch = 0
-if  RESTARTED:
+if RESTARTED:
    model.load_weights(checkpoint_filepath)
    initial_epoch = prof.EPOCHS_DONE
 model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, initial_epoch=initial_epoch, callbacks=[model_checkpoint_callback, kube_callback])
@@ -341,20 +341,20 @@ from torch.utils.data import Dataset, DataLoader
 from kubernetesdlprofile import kubeprofiler
 class  RandomDataset(Dataset):
    def __init__(self, size, length):
-     self.len = length
-     self.data = torch.randn(length, size)
+      self.len = length
+      self.data = torch.randn(length, size)
    def __getitem__(self, index):
-     return  self.data[index]
+      return  self.data[index]
    def __len__(self):
-     return self.len
+      return self.len
 class Model(nn.Module):
    def __init__(self, input_size, output_size):
-     self.prof = kubeprofiler.KubeProfiler()
-     super(Model, self).__init__()
-     self.fc = nn.Linear(input_size, output_size)
-     self.sigmoid = nn.Sigmoid()
+      self.prof = kubeprofiler.KubeProfiler()
+      super(Model, self).__init__()
+      self.fc = nn.Linear(input_size, output_size)
+      self.sigmoid = nn.Sigmoid()
    def forward(self, input):
-     return self.sigmoid(self.fc(input))
+      return self.sigmoid(self.fc(input))
 if __name__ == '__main__':
    input_size = 5
    output_size = 1
@@ -370,25 +370,25 @@ if __name__ == '__main__':
    optimizer = optim.SGD(params=model_par.parameters(), lr=1e-3)
    cls_criterion = nn.BCELoss()
    if model.prof.RESTARTED:
-     model_par.load_state_dict(torch.load(PATH))
+      model_par.load_state_dict(torch.load(PATH))
    for epoch in range(model.prof.EPOCHS - model.prof.EPOCHS_DONE):
-     model.prof.start_epoch()
-     for data in rand_loader:
-       targets = torch.empty(data.size(0)).random_(2).view(-1, 1)
-       if torch.cuda.is_available():
-         input = Variable(data.cuda())
-         with torch.no_grad():
-           targets = Variable(targets.cuda())
-       else:
-         input = Variable(data)
-         with torch.no_grad():
-           targets = Variable(targets)
-       output = model_par(input)
-       optimizer.zero_grad()
-       loss = cls_criterion(output, targets)
-       loss.backward()
-       optimizer.step()
-       model.prof.measure()
-     model.prof.end_epoch()
-     torch.save(model_par.state_dict(), PATH)
+      model.prof.start_epoch()
+      for data in rand_loader:
+         targets = torch.empty(data.size(0)).random_(2).view(-1, 1)
+         if torch.cuda.is_available():
+            input = Variable(data.cuda())
+            with torch.no_grad():
+               targets = Variable(targets.cuda())
+         else:
+            input = Variable(data)
+            with torch.no_grad():
+               targets = Variable(targets)
+         output = model_par(input)
+         optimizer.zero_grad()
+         loss = cls_criterion(output, targets)
+         loss.backward()
+         optimizer.step()
+         model.prof.measure()
+      model.prof.end_epoch()
+      torch.save(model_par.state_dict(), PATH)
 ```
