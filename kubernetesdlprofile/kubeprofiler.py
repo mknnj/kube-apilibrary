@@ -1,6 +1,7 @@
 import requests, os, datetime
 import xml.etree.ElementTree as ET
 import threading
+import sys
 
 class KubeProfiler(object):
     def __init__(self, job_manager_hostname = "10.106.102.22", db_hostname = "10.106.72.44"):
@@ -33,6 +34,7 @@ class KubeProfiler(object):
         self.iterationPerEpoch = int(self.TRAINING_SET_SIZE / (self.BATCH_SIZE * self.NUM_GPUS * self.NUM_NODES))
         self.maxIterations = self.iterationPerEpoch*self.EPOCHS
         self.last_time = None
+        self.has_to_stop = False
 
         self.root_dir = os.path.join("/snapshots", self.JOBID)
         if self.RESTARTED:
@@ -64,6 +66,8 @@ class KubeProfiler(object):
     def measure(self):
         measureThread = threading.Thread(target = self._measure)
         measureThread.start()
+        if self.has_to_stop:
+            sys.exit()
 
     def _measure_mem(self):
         #call to nvidia-smi (quite heavy)
@@ -97,7 +101,7 @@ class KubeProfiler(object):
         try:
             r = requests.get("http://"+self.jmHostname+"/has_to_stop/"+self.JOBID)
             if r.text == "1" and self.epoch < self.EPOCHS-1:
-                exit()
+                self.has_to_stop = True
         except Exception as e:
             print("Can't reach scheduler controller",e)
 
