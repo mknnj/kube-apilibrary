@@ -92,8 +92,19 @@ class KubeProfiler(object):
         except Exception as e:
             print("Can't reach scheduler db",e)
 
-    def start_epoch(self):
+    def _start_epoch(self):
         self.start_epoch_time = datetime.datetime.now()
+        try:
+            r = requests.get("http://"+self.jmHostname+"/has_to_stop/"+self.JOBID)
+            if r.text == "1" and self.epoch < self.EPOCHS-1:
+                exit()
+        except Exception as e:
+            print("Can't reach scheduler controller",e)
+
+    def start_epoch(self):
+        startEpochThread = threading.Thread(target = self._start_epoch)
+        startEpochThread.start()
+        
 
     def _end_epoch(self):
         self.end_epoch_time = datetime.datetime.now()
@@ -115,13 +126,9 @@ class KubeProfiler(object):
             requests.post("http://"+self.dbHostname+"/profiling/"+self.JOBID, json=data)
         except Exception as e:
             print("Can't reach scheduler db",e)
-        try:
-            r = requests.get("http://"+self.jmHostname+"/has_to_stop/"+self.JOBID)
-            if r.text == "1" and self.epoch < self.EPOCHS-1:
-                exit()
-            self.epoch+=1
-        except Exception as e:
-            print("Can't reach scheduler controller",e)
+        
+        self.epoch+=1
+        
     
     def end_epoch(self):
         endEpochThread = threading.Thread(target = self._end_epoch)
