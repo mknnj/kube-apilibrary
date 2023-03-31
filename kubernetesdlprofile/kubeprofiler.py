@@ -30,7 +30,9 @@ class KubeProfiler(object):
             self.LOCAL_RANK = -1
         self.mean_iteration_duration = 0
         self.iterations = 0
-        self.epoch = 0
+        self.epoch = self.EPOCHS_DONE
+        if self.epoch is None:
+            raise Exception("ENV EPOCHS_DONE not set")
         self.iterationPerEpoch = int(self.TRAINING_SET_SIZE / (self.BATCH_SIZE * self.NUM_GPUS * self.NUM_NODES))
         self.maxIterations = self.iterationPerEpoch*self.EPOCHS
         self.last_time = None
@@ -49,6 +51,7 @@ class KubeProfiler(object):
             os.mkdir(self.root_dir)
         self.start_epoch_time = None
         self.end_epoch_time = None
+        self.block_send_sem = threading.Semaphore()
         
     
     def _measure(self):
@@ -97,6 +100,7 @@ class KubeProfiler(object):
             print("Can't reach scheduler db",e)
 
     def _start_epoch(self):
+        self.block_send_sem.acquire()
         self.start_epoch_time = datetime.datetime.now()
         try:
             r = requests.get("http://"+self.jmHostname+"/has_to_stop/"+self.JOBID)
@@ -104,6 +108,7 @@ class KubeProfiler(object):
                 self.has_to_stop = True
         except Exception as e:
             print("Can't reach scheduler controller",e)
+        self.block_send_sem.release()
 
     def start_epoch(self):
         startEpochThread = threading.Thread(target = self._start_epoch)
@@ -111,6 +116,7 @@ class KubeProfiler(object):
         
 
     def _end_epoch(self):
+        self.block_send_sem.acquire()
         self.end_epoch_time = datetime.datetime.now()
         totalEpochDur = (self.end_epoch_time  - self.start_epoch_time).total_seconds()
         
@@ -130,8 +136,19 @@ class KubeProfiler(object):
             requests.post("http://"+self.dbHostname+"/profiling/"+self.JOBID, json=data)
         except Exception as e:
             print("Can't reach scheduler db",e)
-        
+
         self.epoch+=1
+
+        data = {
+            "done" : self.epoch
+        }
+        try:
+            requests.post("http://"+self.jmHostname+"/end_epoch/"+self.JOBID, json=data)
+        except Exception as e:
+            print("Can't reach scheduler job manager, holding epoch number for later sending",e)
+        self.block_send_sem.release()
+        
+        
         
     
     def end_epoch(self):
