@@ -160,7 +160,7 @@ in Pytorch Lightning you have to specify the number of gpus and the number of no
 ```python
 
 # nn.prof is the API instance specified in the network definition
-trainer = pl.Trainer(accelerator="gpu", devices = nn.prof.NUM_GPUS, num_nodes=nn.prof.NUM_NODES, strategy="ddp", max_epochs=nn.profiler.EPOCHS, profiler="simple", default_root_dir=nn.prof.root_dir)
+trainer = pl.Trainer(accelerator="gpu", devices = nn.prof.NUM_GPUS, num_nodes=nn.prof.NUM_NODES, strategy="ddp", max_epochs=nn.profiler.EPOCHS - nn.profile.EPOCHS_DONE, profiler="simple", default_root_dir=nn.prof.root_dir)
 
 ```
 .. in Tensorflow:
@@ -231,7 +231,7 @@ if  __name__=="__main__":
    nn = TestNN()
    train, val = random_split(dataset, [nn.prof.TRAINING_SET_SIZE, len(dataset)-nn.prof.TRAINING_SET_SIZE])
    batch_size = nn.prof.BATCH_SIZE
-   epochs = nn.prof.EPOCHS
+   epochs = nn.prof.EPOCHS - nn.prof.EPOCHS_DONE
    workers = 10
    trainer = pl.Trainer(accelerator="gpu", devices = nn.prof.NUM_GPUS, num_nodes=nn.prof.NUM_NODES, strategy="ddp", max_epochs=epochs, profiler="simple", default_root_dir=nn.prof.root_dir)
    if  not nn.prof.RESTARTED:
