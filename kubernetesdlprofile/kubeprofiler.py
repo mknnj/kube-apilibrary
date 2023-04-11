@@ -67,7 +67,7 @@ class KubeProfiler(object):
     
     def measure(self):
         now = datetime.datetime.now()
-        measureThread = threading.Thread(target = self._measure, args = (now))
+        measureThread = threading.Thread(target = self._measure, args = (now,))
         measureThread.start()
         if self.has_to_stop:
             sys.exit()
