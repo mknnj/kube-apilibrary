@@ -124,7 +124,7 @@ class KubeProfiler(object):
         
         data = {
         "jobid" : self.JOBID,
-        "timestamp" : now,
+        "timestamp" : now.isoformat(),
         "iternum" : self.iterations,
         "nodelist" : self.NODE_LIST,
         "numgpu" : self.NUM_GPUS,
@@ -154,7 +154,7 @@ class KubeProfiler(object):
         
     
     def end_epoch(self):
-        now = datetime.datetime.now().isoformat()
+        now = datetime.datetime.now()
         #endEpochThread = threading.Thread(target = self._end_epoch, args = (now))
         #endEpochThread.start()
         self._end_epoch(now)
