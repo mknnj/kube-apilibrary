@@ -54,8 +54,7 @@ class KubeProfiler(object):
         self.block_send_sem = threading.Semaphore()
         
     
-    def _measure(self):
-        now = datetime.datetime.now()
+    def _measure(self, now):
         if self.last_time:
              iter_duration = (now - self.last_time).total_seconds()
              self.last_time = now
@@ -67,7 +66,8 @@ class KubeProfiler(object):
              self.send_profiling()
     
     def measure(self):
-        measureThread = threading.Thread(target = self._measure)
+        now = datetime.datetime.now()
+        measureThread = threading.Thread(target = self._measure, args = (now))
         measureThread.start()
         if self.has_to_stop:
             sys.exit()
@@ -99,9 +99,9 @@ class KubeProfiler(object):
         except Exception as e:
             print("Can't reach scheduler db",e)
 
-    def _start_epoch(self):
+    def _start_epoch(self, now):
         self.block_send_sem.acquire()
-        self.start_epoch_time = datetime.datetime.now()
+        self.start_epoch_time = now
         try:
             r = requests.get("http://"+self.jmHostname+"/has_to_stop/"+self.JOBID)
             if r.text == "1" and self.epoch < self.EPOCHS-1:
@@ -111,18 +111,20 @@ class KubeProfiler(object):
         self.block_send_sem.release()
 
     def start_epoch(self):
-        startEpochThread = threading.Thread(target = self._start_epoch)
-        startEpochThread.start()
+        now = datetime.datetime.now()
+        #startEpochThread = threading.Thread(target = self._start_epoch, args = (now))
+        #startEpochThread.start()
+        self._start_epoch(now)
         
 
-    def _end_epoch(self):
+    def _end_epoch(self, now):
         self.block_send_sem.acquire()
-        self.end_epoch_time = datetime.datetime.now()
+        self.end_epoch_time = now
         totalEpochDur = (self.end_epoch_time  - self.start_epoch_time).total_seconds()
         
         data = {
         "jobid" : self.JOBID,
-        "timestamp" : datetime.datetime.now().isoformat(),
+        "timestamp" : now,
         "iternum" : self.iterations,
         "nodelist" : self.NODE_LIST,
         "numgpu" : self.NUM_GPUS,
@@ -152,8 +154,10 @@ class KubeProfiler(object):
         
     
     def end_epoch(self):
-        endEpochThread = threading.Thread(target = self._end_epoch)
-        endEpochThread.start()
+        now = datetime.datetime.now().isoformat()
+        #endEpochThread = threading.Thread(target = self._end_epoch, args = (now))
+        #endEpochThread.start()
+        self._end_epoch(now)
 
     def end(self):
         return
