@@ -41,7 +41,7 @@ class KubeProfiler(object):
         self.root_dir = os.path.join("/snapshots", self.JOBID)
         if self.RESTARTED:
             try:
-                _, _, versions = next(os.walk(os.path.join(self.root_dir, "lightning_logs")), (None, None, []))
+                _, versions, _ = next(os.walk(os.path.join(self.root_dir, "lightning_logs")), (None, None, []))
                 print(versions)
                 last_version = max([int(v.split("_")[1]) for v in versions])
                 print("[KUBE_API_LIBRARY] last version found is ", last_version)
