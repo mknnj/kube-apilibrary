@@ -42,12 +42,14 @@ class KubeProfiler(object):
         if self.RESTARTED:
             try:
                 _, _, versions = next(os.walk(os.path.join(self.root_dir, "lightning_logs")), (None, None, []))
+                print(versions)
                 last_version = max([int(v.split("_")[1]) for v in versions])
                 print("[KUBE_API_LIBRARY] last version found is ", last_version)
                 checkpoints_dir = os.path.join(self.root_dir, "lightning_logs/version_"+str(last_version)+"/checkpoints")
                 _, _, filenames = next(os.walk(checkpoints_dir), (None, None, []))
                 self.ckpt_path = os.path.join(checkpoints_dir, filenames[0])
-            except:
+            except Exception as e:
+                print(e)
                 #print("Pytorch Lightning checkpoint folder not found, ckpt_path is root_dir")
                 self.ckpt_path = self.root_dir + "/tf_ckpt"
             print("[KUBE_API_LIBRARY]: Job Restarted, ckpt_path: ", self.ckpt_path)
