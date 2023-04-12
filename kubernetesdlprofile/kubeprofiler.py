@@ -47,6 +47,7 @@ class KubeProfiler(object):
             except:
                 #print("Pytorch Lightning checkpoint folder not found, ckpt_path is root_dir")
                 self.ckpt_path = self.root_dir + "/tf_ckpt"
+            print("[KUBE_API_LIBRARY]: Job Restarted, ckpt_path: ", self.ckpt_path)
         elif not os.path.isdir(self.root_dir):
             os.mkdir(self.root_dir)
         self.start_epoch_time = None
