@@ -41,7 +41,10 @@ class KubeProfiler(object):
         self.root_dir = os.path.join("/snapshots", self.JOBID)
         if self.RESTARTED:
             try:
-                checkpoints_dir = os.path.join(self.root_dir, "lightning_logs/version_0/checkpoints")
+                _, _, versions = next(os.walk(os.path.join(self.root_dir, "lightning_logs")), (None, None, []))
+                last_version = max([int(v.split("_")[1]) for v in versions])
+                print("[KUBE_API_LIBRARY] last version found is ", last_version)
+                checkpoints_dir = os.path.join(self.root_dir, "lightning_logs/version_"+str(last_version)+"/checkpoints")
                 _, _, filenames = next(os.walk(checkpoints_dir), (None, None, []))
                 self.ckpt_path = os.path.join(checkpoints_dir, filenames[0])
             except:
